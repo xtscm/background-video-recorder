@@ -155,7 +155,7 @@ class RecordingQueue {
                 cropY: job.cropY || 0,
                 viewportWidth: job.viewportWidth || job.width,
                 viewportHeight: job.viewportHeight || job.height,
-                verbose: false
+                verbose: true
             });
 
             job.status = 'completed';
