@@ -125,7 +125,6 @@ async function recordWebsite(url, {
     '-f','image2pipe','-vcodec','mjpeg','-i','-',
     '-vsync','2', 
     '-vf', videoFilter,
-    '-r',String(frameRate),
     '-c:v','libx264','-preset','veryfast','-crf',String(crf),
     '-pix_fmt','yuv420p','-y',out
   ];
@@ -146,8 +145,12 @@ async function recordWebsite(url, {
     frames++;
     if(frames === 1) log('First frame received');
     if(frames % 25 === 0) log(`${frames} frames captured`);
-    ff.stdin.write(Buffer.from(data,'base64'));
-    Page.screencastFrameAck({sessionId});
+    Page.screencastFrameAck({ sessionId });        // ① ACK first
+if (!ff.stdin.write(Buffer.from(data, 'base64'))) {
+      // ② Back-pressure: pause ACKing until pipe drains
+      Page.stopScreencast();
+      ff.stdin.once('drain', () => Page.startScreencast({format:'jpeg',quality:jpegQ,everyNthFrame:2}));
+  }
   });
 
   await Page.navigate({url});
