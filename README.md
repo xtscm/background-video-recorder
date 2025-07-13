@@ -120,23 +120,30 @@ GET /api/download?file=/path/to/recording.mp4
 
 ## Configuration
 
-### Default Settings
+### Server-Optimized Defaults
 ```javascript
 // Record duration
 duration: 30000 (30 seconds)
 
-// Video quality  
-quality: 80 (0-100 scale)
+// Video quality (optimized for servers)
+quality: 60 (0-100 scale)
 
-// Frame rate
-frameRate: 30
+// Frame rate (reduced for server performance)  
+frameRate: 15
 
 // Output format
-format: 'mp4' (or 'webm')
+format: 'mp4' (recommended for servers)
 
 // Concurrent recordings
 maxConcurrent: 3
 ```
+
+### Performance Optimizations
+- **Frame rate reduced to 15fps** for smoother server performance
+- **Quality set to 60** to balance file size and server resources
+- **FFmpeg uses ultrafast preset** for real-time encoding
+- **Duration is strictly enforced** to prevent runaway recordings
+- **Optimized Chrome arguments** for containerized environments
 
 ### Customization
 

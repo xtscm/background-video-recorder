@@ -60,11 +60,11 @@ async function recordWebsite(url, {
   duration  = 30000,
   width     = 1920,
   height    = 1080,
-  frameRate = 30,
+  frameRate = 15, // Reduced from 30 for server performance
   outputDir = './recordings',
   outputFile = null,
   format    = 'mp4',
-  quality   = 80,
+  quality   = 60, // Reduced from 80 for server performance
   verbose   = false,
   cropX     = 0,
   cropY     = 0,
@@ -112,21 +112,29 @@ async function recordWebsite(url, {
   const { Page } = cdp;
   await Page.enable();
 
-  // ---------- FFmpeg (constant-fps smoothing) ----------
+  // ---------- FFmpeg (server-optimized, duration-limited) ----------
+  const durationSeconds = Math.ceil(duration / 1000);
   const ffArgs = [
     '-loglevel', verbose ? 'info' : 'error',
     '-use_wallclock_as_timestamps','1','-fflags','+genpts',
     '-f','image2pipe','-vcodec','png','-i','-',
-    // convert PTS→0, crop if needed, then down/dup to constant fps
-    '-vf',`setpts=PTS-STARTPTS,crop=${width}:${height}:${cropX}:${cropY},fps=${frameRate},scale=${width}:${height}:flags=lanczos`,
+    // Limit output duration to prevent runaway videos
+    '-t', String(durationSeconds),
+    // Server-optimized video filter: crop first, then fps, then scale
+    '-vf',`setpts=PTS-STARTPTS,crop=${width}:${height}:${cropX}:${cropY},fps=${frameRate}:round=up,scale=${width}:${height}:flags=fast_bilinear`,
     '-vsync','cfr',
+    // Server optimization flags
+    '-threads', '2',
+    '-preset', 'ultrafast',
   ];
   if (format==='mp4') {
-    const crf=Math.max(18,36-Math.round(quality/3));
-    ffArgs.push('-c:v','libx264','-preset','medium','-crf',String(crf),'-pix_fmt','yuv420p');
+    // Server-optimized H.264 settings
+    const crf = Math.max(23, 40 - Math.round(quality/4)); // Higher CRF for servers
+    ffArgs.push('-c:v','libx264','-preset','ultrafast','-crf',String(crf),'-pix_fmt','yuv420p');
+    ffArgs.push('-movflags','+faststart'); // Web optimization
   } else {
-    const br=Math.round(quality*50);
-    ffArgs.push('-c:v','libvpx-vp9','-b:v',`${br}k`);
+    const br=Math.round(quality*30); // Lower bitrate for servers
+    ffArgs.push('-c:v','libvpx-vp9','-b:v',`${br}k`,'-cpu-used','8'); // Fastest VP9 encoding
   }
   ffArgs.push('-y',out);
   if(verbose) console.log('FFmpeg ->',FFMPEG,ffArgs.join(' '));
@@ -152,13 +160,28 @@ async function recordWebsite(url, {
   if(navOK){
     try { await Page.loadEventFired(); } catch(_) {}
   }
-  await Page.startScreencast({ format:'png', everyNthFrame:1 });
+  // Start screencast with server-optimized settings
+  const screencastOptions = {
+    format: 'png',
+    everyNthFrame: Math.max(1, Math.floor(30 / frameRate)), // Reduce capture rate
+    quality: Math.min(80, quality) // Limit screenshot quality for performance
+  };
+  await Page.startScreencast(screencastOptions);
 
+  // Record for specified duration
+  console.log(`🎬 Recording for ${duration}ms...`);
   await new Promise(r=>setTimeout(r,duration));
   live=false;
+  
+  console.log(`🎬 Stopping recording...`);
   await Page.stopScreencast();
   ff.stdin.end();
-  await new Promise(r=>ff.on('close',r));
+  
+  // Wait for FFmpeg to finish with timeout
+  await Promise.race([
+    new Promise(r=>ff.on('close',r)),
+    new Promise((_,reject)=>setTimeout(()=>reject(new Error('FFmpeg timeout')), 30000))
+  ]);
   await cdp.close();
   await browser.close();
 
