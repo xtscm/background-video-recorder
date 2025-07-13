@@ -36,7 +36,14 @@ async function takeScreenshot(url, { width = 1920, height = 1080 } = {}) {
         '--enable-webgl',
         '--ignore-gpu-blacklist',
         '--disable-web-security',
-        '--disable-features=VizDisplayCompositor'
+        '--disable-features=VizDisplayCompositor',
+        '--no-first-run',
+        '--disable-default-apps',
+        '--disable-popup-blocking',
+        '--disable-translate',
+        '--disable-background-timer-throttling',
+        '--disable-renderer-backgrounding',
+        '--disable-backgrounding-occluded-windows',
       ],
       defaultViewport: null
     });

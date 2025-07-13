@@ -11,10 +11,49 @@ const ffmpeg    = require('@ffmpeg-installer/ffmpeg');
 const FFMPEG = ffmpeg.path;
 
 async function getChrome() {
-  const { Launcher } = await import('chrome-launcher');
-  const [exe] = await Launcher.getInstallations();
-  if (!exe) throw new Error('Chrome executable not found');
-  return exe;
+  // Check for environment variable first
+  if (process.env.CHROME_PATH) {
+    console.log(`🎬 Using Chrome from CHROME_PATH: ${process.env.CHROME_PATH}`);
+    return process.env.CHROME_PATH;
+  }
+
+  // Common Chrome paths on different systems
+  const possiblePaths = [
+    // Linux paths
+    '/usr/bin/google-chrome',
+    '/usr/bin/google-chrome-stable',
+    '/usr/bin/chromium',
+    '/usr/bin/chromium-browser',
+    '/snap/bin/chromium',
+    // macOS paths
+    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+    '/Applications/Chromium.app/Contents/MacOS/Chromium',
+    // Windows paths
+    'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+    'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+  ];
+  
+  // Check common paths
+  for (const path of possiblePaths) {
+    if (fs.existsSync(path)) {
+      console.log(`🎬 Found Chrome at: ${path}`);
+      return path;
+    }
+  }
+
+  // Try chrome-launcher as fallback
+  try {
+    const { Launcher } = await import('chrome-launcher');
+    const [exe] = await Launcher.getInstallations();
+    if (exe) {
+      console.log(`🎬 Chrome-launcher found: ${exe}`);
+      return exe;
+    }
+  } catch (error) {
+    console.warn(`🎬 Chrome-launcher failed: ${error.message}`);
+  }
+
+  throw new Error('Chrome executable not found. Please install Chrome or set CHROME_PATH environment variable.');
 }
 
 async function recordWebsite(url, {
@@ -44,8 +83,23 @@ async function recordWebsite(url, {
     headless: true,
     args: [
       `--window-size=${viewportWidth},${viewportHeight}`,
-      '--no-sandbox', '--remote-debugging-port=0',
-      '--autoplay-policy=no-user-gesture-required', '--enable-webgl', 'ignore-gpu-blacklist',
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-gpu',
+      '--remote-debugging-port=0',
+      '--autoplay-policy=no-user-gesture-required',
+      '--enable-webgl',
+      '--ignore-gpu-blacklist',
+      '--disable-web-security',
+      '--disable-features=VizDisplayCompositor',
+      '--no-first-run',
+      '--disable-default-apps',
+      '--disable-popup-blocking',
+      '--disable-translate',
+      '--disable-background-timer-throttling',
+      '--disable-renderer-backgrounding',
+      '--disable-backgrounding-occluded-windows',
     ],
     defaultViewport: null
   });
