@@ -28,9 +28,9 @@ async function getChrome() {
     '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
   ];
   
-  for (const path of serverPaths) {
-    if (fs.existsSync(path)) {
-      return path;
+  for (const p of serverPaths) {
+    if (fs.existsSync(p)) {
+      return p;
     }
   }
   
@@ -39,44 +39,42 @@ async function getChrome() {
     const { Launcher } = await import('chrome-launcher');
     const [exe] = Launcher.getInstallations();
     if (exe) return exe;
-  } catch (e) {
-    // chrome-launcher might not be available in server environment
-  }
+  } catch (_) {}
   
   throw new Error('Chrome executable not found. Please install Chrome or set CHROME_PATH environment variable.');
 }
 
-function even(n){ return n % 2 === 0 ? n : n - 1; }
+function even (n) { return n % 2 === 0 ? n : n - 1; }
 
-async function recordWebsite(url, {
-  duration   = 30000,
-  width      = 1920,
-  height     = 1080,
-  frameRate  = 25,
-  jpegQ      = 60,
-  outputDir  = './recordings',
-  outputFile = null,
-  format     = 'mp4',
-  crf        = 23,
-  verbose    = false,
-  cropX      = 0,
-  cropY      = 0,
-  viewportWidth = 1920,
+async function recordWebsite (url, {
+  duration       = 30000,
+  width          = 1920,
+  height         = 1080,
+  frameRate      = 25,
+  jpegQ          = 60,
+  outputDir      = './recordings',
+  outputFile     = null,
+  format         = 'mp4',
+  crf            = 23,
+  verbose        = false,
+  cropX          = 0,
+  cropY          = 0,
+  viewportWidth  = 1920,
   viewportHeight = 1080
 } = {}) {
   let browser, cdp, ff;
-  const log = (...a)=>verbose&&console.log('[rec]',...a);
-  
+  const log = (...a) => verbose && console.log('[rec]', ...a);
+
   try {
     width  = even(width);
     height = even(height);
-    const vWidth = even(viewportWidth);
+    const vWidth  = even(viewportWidth);
     const vHeight = even(viewportHeight);
 
-    fs.mkdirSync(outputDir,{recursive:true});
-    const ts = new Date().toISOString().replace(/[:.]/g,'-');
-    const file = outputFile || `${new URL(url).hostname.replace(/[^\w]/g,'_')}_${ts}.${format}`;
-    const out  = path.join(outputDir,file);
+    fs.mkdirSync(outputDir, { recursive: true });
+    const ts   = new Date().toISOString().replace(/[:.]/g, '-');
+    const file = outputFile || `${new URL(url).hostname.replace(/[^\w]/g, '_')}_${ts}.${format}`;
+    const out  = path.join(outputDir, file);
 
     browser = await puppeteer.launch({
       executablePath: await getChrome(),
@@ -106,99 +104,113 @@ async function recordWebsite(url, {
     });
 
     const port = +browser.wsEndpoint().match(/:(\d+)\//)[1];
-    cdp = await CDP({port});
+    cdp = await CDP({ port });
     const { Page } = cdp; await Page.enable();
 
-  const needsCrop = (cropX > 0 || cropY > 0 || width !== vWidth || height !== vHeight);
-  const   videoFilter = needsCrop
-    ? `crop=${width}:${height}:${cropX}:${cropY},scale=${width}:${height}:flags=lanczos,pad=ceil(iw/2)*2:ceil(ih/2)*2`
-    : `scale=${width}:${height}:flags=lanczos,pad=ceil(iw/2)*2:ceil(ih/2)*2`;
-  
-  log(`Recording ${url}`);
-  log(`Viewport: ${vWidth}x${vHeight}, Output: ${width}x${height}`);
-  log(`Crop: ${needsCrop ? `${cropX},${cropY}` : 'none'}`);
-  log(`Filter: ${videoFilter}`);
-  
-  const ffArgs=[
-    '-loglevel', verbose?'info':'error',
-    '-use_wallclock_as_timestamps','1','-fflags','+genpts',
-    '-f','image2pipe','-vcodec','mjpeg','-i','-',
-    '-vsync','2', 
-    '-vf', videoFilter,
-    '-c:v','libx264','-preset','veryfast','-crf',String(crf),
-    '-pix_fmt','yuv420p','-y',out
-  ];
-  if(verbose)console.log('FFmpeg ->',FFMPEG,ffArgs.join(' '));
-  const ff=spawn(FFMPEG,ffArgs,{stdio:['pipe','ignore','inherit']});
-  
-  ff.on('error', (error) => {
-    log('FFmpeg error:', error);
-  });
-  
-  ff.on('close', (code) => {
-    log(`FFmpeg exited with code ${code}`);
-  });
+    const needsCrop = (cropX > 0 || cropY > 0 || width !== vWidth || height !== vHeight);
+    const videoFilter = needsCrop
+      ? `crop=${width}:${height}:${cropX}:${cropY},scale=${width}:${height}:flags=lanczos,pad=ceil(iw/2)*2:ceil(ih/2)*2`
+      : `scale=${width}:${height}:flags=lanczos,pad=ceil(iw/2)*2:ceil(ih/2)*2`;
 
-  let live=true,frames=0;
-  Page.screencastFrame(({data,sessionId})=>{
-    if(!live||ff.stdin.destroyed)return;
-    frames++;
-    if(frames === 1) log('First frame received');
-    if(frames % 25 === 0) log(`${frames} frames captured`);
-    Page.screencastFrameAck({ sessionId });        // ① ACK first
-if (!ff.stdin.write(Buffer.from(data, 'base64'))) {
-      // ② Back-pressure: pause ACKing until pipe drains
-      Page.stopScreencast();
-      ff.stdin.once('drain', () => Page.startScreencast({format:'jpeg',quality:jpegQ,everyNthFrame:2}));
-  }
-  });
+    log(`Recording ${url}`);
+    log(`Viewport: ${vWidth}x${vHeight}, Output: ${width}x${height}`);
+    log(`Crop: ${needsCrop ? `${cropX},${cropY}` : 'none'}`);
+    log(`Filter: ${videoFilter}`);
 
-  await Page.navigate({url});
-  await new Promise(resolve => setTimeout(resolve, 3000));
-  await Page.startScreencast({format:'jpeg',quality:jpegQ,everyNthFrame:2});
+    const ffArgs = [
+      '-loglevel', verbose ? 'info' : 'error',
+      '-use_wallclock_as_timestamps', '1',
+      '-fflags', '+genpts',
+      '-f', 'image2pipe',
+      '-vcodec', 'mjpeg', '-i', '-',
+      '-vsync', '2',                 // duplicate frames to maintain CFR
+      '-vf', videoFilter,
+      '-r', String(frameRate),       // target FPS in output
+      '-c:v', 'libx264', '-preset', 'veryfast', '-crf', String(crf),
+      '-pix_fmt', 'yuv420p',
+      '-y', out
+    ];
 
-  await new Promise(r=>setTimeout(r,duration));
-  live=false;
-  try {
-    await Page.stopScreencast();
-  } catch(e){
-    log('stopScreencast warning:', e.message);
-  }
-  log(`Stopping recording. Captured ${frames} frames`);
-  ff.stdin.end();
-  await new Promise(r=>ff.once('close',r));
-  await cdp.close();
-  await browser.close();
+    if (verbose) console.log('FFmpeg ->', FFMPEG, ffArgs.join(' '));
+    ff = spawn(FFMPEG, ffArgs, { stdio: ['pipe', 'ignore', 'inherit'] });
 
-    if(!fs.existsSync(out)||!fs.statSync(out).size) throw new Error(`Empty output. Captured ${frames} frames but no video generated`);
+    ff.on('error', err => log('FFmpeg error:', err));
+    ff.on('close', code => log(`FFmpeg exited with code ${code}`));
+
+    await Page.navigate({ url });
+    await new Promise(r => setTimeout(r, 3000)); // give the page some time to settle
+
+    // ------------------------------------------------------------------
+    // NEW: pull-based capture loop (predictable frame count)
+    // ------------------------------------------------------------------
+    let live   = true;
+    let frames = 0;
+    let busy   = false;               // prevent overlapping captureScreenshot calls
+    const intervalMs = 1000 / frameRate;
+
+    const grab = setInterval(async () => {
+      if (!live || ff.stdin.destroyed || busy) return;
+      busy = true;
+      try {
+        const { data } = await Page.captureScreenshot({ format: 'jpeg', quality: jpegQ });
+        frames++;
+        if (frames === 1) log('First frame captured');
+        if (frames % frameRate === 0) log(`${frames} frames captured`);
+        ff.stdin.write(Buffer.from(data, 'base64'));
+      } catch (err) {
+        log('captureScreenshot error:', err.message);
+      } finally {
+        busy = false;
+      }
+    }, intervalMs);
+
+    // wait the desired duration
+    await new Promise(r => setTimeout(r, duration));
+
+    // stop capturing and clean up
+    live = false;
+    clearInterval(grab);
+    log(`Stopping recording. Captured ${frames} frames`);
+
+    ff.stdin.end();
+    await new Promise(r => ff.once('close', r));
+    await cdp.close();
+    await browser.close();
+
+    // verify output exists and has data
+    if (!fs.existsSync(out) || !fs.statSync(out).size) {
+      throw new Error(`Empty output. Captured ${frames} frames but no video generated`);
+    }
+
     log(`✅ Recording completed: ${out} (${frames} frames)`);
     return out;
-    
-  } catch (error) {
-    log(`❌ Recording failed: ${error.message}`);
-    
-    // Cleanup resources on error
+
+  } catch (err) {
+    log(`❌ Recording failed: ${err.message}`);
+
     if (ff && !ff.stdin.destroyed) {
-      try { ff.stdin.end(); } catch (e) {}
-      try { ff.kill('SIGTERM'); } catch (e) {}
+      try { ff.stdin.end(); } catch (_) {}
+      try { ff.kill('SIGTERM'); } catch (_) {}
     }
     if (cdp) {
-      try { await cdp.close(); } catch (e) {}
+      try { await cdp.close(); } catch (_) {}
     }
     if (browser) {
-      try { await browser.close(); } catch (e) {}
+      try { await browser.close(); } catch (_) {}
     }
-    
-    throw error;
+    throw err;
   }
 }
 
-if(require.main===module){
-  const [,,url,...args]=process.argv;
-  if(!url){console.log('Usage: node record.js <url> --duration 30000 --verbose');process.exit(1);}
-  const pick=f=>{const i=args.indexOf(f);return i!==-1?Number(args[i+1]):undefined;};
-  recordWebsite(url,{duration:pick('--duration')||30000,verbose:args.includes('--verbose')})
-    .catch(e=>{console.error('❌',e);process.exit(1);});
+if (require.main === module) {
+  const [, , url, ...args] = process.argv;
+  if (!url) {
+    console.log('Usage: node record.js <url> --duration 30000 --verbose');
+    process.exit(1);
+  }
+  const pick = f => { const i = args.indexOf(f); return i !== -1 ? Number(args[i + 1]) : undefined; };
+  recordWebsite(url, { duration: pick('--duration') || 30000, verbose: args.includes('--verbose') })
+    .catch(e => { console.error('❌', e); process.exit(1); });
 }
 
-module.exports={recordWebsite};
+module.exports = { recordWebsite };
