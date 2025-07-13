@@ -65,13 +65,13 @@ async function recordWebsite(url, {
   viewportHeight = 1080
 } = {}) {
   let browser, cdp, ff;
+  const log = (...a)=>verbose&&console.log('[rec]',...a);
   
   try {
     width  = even(width);
     height = even(height);
     const vWidth = even(viewportWidth);
     const vHeight = even(viewportHeight);
-    const log = (...a)=>verbose&&console.log('[rec]',...a);
 
     fs.mkdirSync(outputDir,{recursive:true});
     const ts = new Date().toISOString().replace(/[:.]/g,'-');
