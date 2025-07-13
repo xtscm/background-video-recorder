@@ -144,7 +144,7 @@ async function recordWebsite(url, {
   const ffArgs = [
     '-loglevel', verbose ? 'info' : 'error',
     '-use_wallclock_as_timestamps','1','-fflags','+genpts',
-    '-f','image2pipe','-vcodec','png','-i','-',
+    '-f','image2pipe','-vcodec','mjpeg','-i','-',
     // Limit output duration to prevent runaway videos
     '-t', String(durationSeconds),
     // Original working video filter
@@ -214,19 +214,50 @@ async function recordWebsite(url, {
   // Wait for page stability before recording
   await new Promise(r => setTimeout(r, 3000));
 
-  // Start screencast - capture at full rate, let FFmpeg handle frame rate
+  // Force Chrome to provide frames at a reasonable rate
   const screencastOptions = {
-    format: 'png',
-    everyNthFrame: 1, // Capture every frame for smooth output
-    quality: Math.min(80, quality)
+    format: 'jpeg', // JPEG is faster than PNG
+    everyNthFrame: 1,
+    quality: 60, // Lower quality for better performance
+    maxWidth: viewportWidth,
+    maxHeight: viewportHeight
   };
   
-  console.log(`🎬 Screencast: capturing every frame, FFmpeg will convert to ${frameRate}fps`);
+  console.log(`🎬 Starting screencast with JPEG format for better performance`);
   await Page.startScreencast(screencastOptions);
+  
+  // Force page interaction to trigger frame updates
+  await page.evaluate(() => {
+    // Scroll slightly to trigger repaints
+    window.scrollBy(0, 1);
+    window.scrollBy(0, -1);
+  });
 
-  // Record for specified duration
+  // Record for specified duration with forced frame capture
   console.log(`🎬 Recording for ${duration}ms...`);
+  
+  // Force regular frame updates during recording
+  const frameForcer = setInterval(async () => {
+    try {
+      await page.evaluate(() => {
+        // Force repaint by updating a hidden element
+        const div = document.createElement('div');
+        div.style.position = 'fixed';
+        div.style.top = '-1px';
+        div.style.left = '-1px';
+        div.style.width = '1px';
+        div.style.height = '1px';
+        div.style.opacity = '0';
+        document.body.appendChild(div);
+        setTimeout(() => document.body.removeChild(div), 1);
+      });
+    } catch (e) {
+      // Ignore errors during forced updates
+    }
+  }, 100); // Force update every 100ms
+  
   await new Promise(r=>setTimeout(r,duration));
+  clearInterval(frameForcer);
   live=false;
   
   const actualDuration = Date.now() - startTime;
