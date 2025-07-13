@@ -110,7 +110,7 @@ async function recordWebsite(url, {
     const { Page } = cdp; await Page.enable();
 
   const needsCrop = (cropX > 0 || cropY > 0 || width !== vWidth || height !== vHeight);
-  const videoFilter = needsCrop
+  const   videoFilter = needsCrop
     ? `crop=${width}:${height}:${cropX}:${cropY},scale=${width}:${height}:flags=lanczos,pad=ceil(iw/2)*2:ceil(ih/2)*2`
     : `scale=${width}:${height}:flags=lanczos,pad=ceil(iw/2)*2:ceil(ih/2)*2`;
   
@@ -123,8 +123,8 @@ async function recordWebsite(url, {
     '-loglevel', verbose?'info':'error',
     '-use_wallclock_as_timestamps','1','-fflags','+genpts',
     '-f','image2pipe','-vcodec','mjpeg','-i','-',
-    '-vsync','vfr',
-    '-vf',videoFilter,
+    '-vsync','2', 
+    '-vf', videoFilter,
     '-r',String(frameRate),
     '-c:v','libx264','-preset','veryfast','-crf',String(crf),
     '-pix_fmt','yuv420p','-y',out
@@ -152,7 +152,7 @@ async function recordWebsite(url, {
 
   await Page.navigate({url});
   await new Promise(resolve => setTimeout(resolve, 3000));
-  await Page.startScreencast({format:'jpeg',quality:jpegQ,everyNthFrame:1});
+  await Page.startScreencast({format:'jpeg',quality:jpegQ,everyNthFrame:2});
 
   await new Promise(r=>setTimeout(r,duration));
   live=false;
