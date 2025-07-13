@@ -60,11 +60,11 @@ async function recordWebsite(url, {
   duration  = 30000,
   width     = 1920,
   height    = 1080,
-  frameRate = 12, // Further reduced for smoothness
+  frameRate = 20, // Back to working framerate
   outputDir = './recordings',
   outputFile = null,
   format    = 'mp4',
-  quality   = 50, // Further reduced for performance
+  quality   = 70, // Back to balanced quality
   verbose   = false,
   cropX     = 0,
   cropY     = 0,
@@ -139,25 +139,20 @@ async function recordWebsite(url, {
   const { Page } = cdp;
   await Page.enable();
 
-  // ---------- Highly optimized FFmpeg for smooth playback ----------
+  // ---------- Back to original FFmpeg approach that worked ----------
   const durationSeconds = Math.ceil(duration / 1000);
   const ffArgs = [
     '-loglevel', verbose ? 'info' : 'error',
-    '-f','image2pipe','-vcodec','png',
-    '-r', String(frameRate), // Input framerate
-    '-i','-',
+    '-use_wallclock_as_timestamps','1','-fflags','+genpts',
+    '-f','image2pipe','-vcodec','png','-i','-',
     // Limit output duration to prevent runaway videos
     '-t', String(durationSeconds),
-    // Optimized video pipeline: smooth frame generation
-    '-vf',[
-      'setpts=PTS-STARTPTS', // Reset timestamps
-      `crop=${width}:${height}:${cropX}:${cropY}`, // Crop first
-      `fps=${frameRate}:round=up`, // Generate smooth frames
-      `scale=${width}:${height}:flags=fast_bilinear` // Fast scaling
-    ].join(','),
-    '-vsync','cfr', // Constant frame rate
-    '-r', String(frameRate), // Output framerate
-    '-threads', '4', // Use more threads for CX32
+    // Original working video filter
+    '-vf',`setpts=PTS-STARTPTS,crop=${width}:${height}:${cropX}:${cropY},fps=${frameRate}:round=up,scale=${width}:${height}:flags=fast_bilinear`,
+    '-vsync','cfr',
+    // Server optimization flags
+    '-threads', '2',
+    '-preset', 'ultrafast',
   ];
 
   if (format==='mp4') {
@@ -189,37 +184,16 @@ async function recordWebsite(url, {
   ffArgs.push('-y',out);
   
   if(verbose) console.log('FFmpeg ->',FFMPEG,ffArgs.join(' '));
-  const ff = spawn(FFMPEG, ffArgs, { 
-    stdio: ['pipe','ignore','inherit'],
-    env: { ...process.env, OMP_NUM_THREADS: '4' } // Use multiple threads
-  });
+  const ff = spawn(FFMPEG, ffArgs, { stdio: ['pipe','ignore','inherit'] });
 
-  // Frame rate control for smoother capture
-  let frameCounter = 0;
-  let live = true;
-  const frameInterval = 1000 / frameRate; // ms between frames
-  let lastFrameTime = 0;
-
+  let live=true;
+  let frameCount = 0;
+  const startTime = Date.now();
+  
   Page.screencastFrame(({ data, sessionId }) => {
-    if (!live || ff.stdin.destroyed) {
-      Page.screencastFrameAck({ sessionId });
-      return;
-    }
-
-    const now = Date.now();
-    
-    // Throttle frames to exact framerate for smoother output
-    if (now - lastFrameTime >= frameInterval) {
-      frameCounter++;
-      lastFrameTime = now;
-      
-      try {
-        ff.stdin.write(Buffer.from(data,'base64'));
-      } catch (err) {
-        if (verbose) console.error('Frame write error:', err);
-      }
-    }
-    
+    if (!live || ff.stdin.destroyed) return;
+    frameCount++;
+    ff.stdin.write(Buffer.from(data,'base64'));
     Page.screencastFrameAck({ sessionId });
   });
 
@@ -240,59 +214,49 @@ async function recordWebsite(url, {
   // Wait for page stability before recording
   await new Promise(r => setTimeout(r, 3000));
 
-  // Start screencast with performance-optimized settings
+  // Start screencast - capture at full rate, let FFmpeg handle frame rate
   const screencastOptions = {
     format: 'png',
-    everyNthFrame: 1, // Capture every frame, we'll throttle in handler
-    quality: 70, // Reduced screenshot quality for performance
-    maxWidth: viewportWidth,
-    maxHeight: viewportHeight
+    everyNthFrame: 1, // Capture every frame for smooth output
+    quality: Math.min(80, quality)
   };
+  
+  console.log(`🎬 Screencast: capturing every frame, FFmpeg will convert to ${frameRate}fps`);
   await Page.startScreencast(screencastOptions);
 
   // Record for specified duration
-  console.log(`🎬 Recording for ${duration}ms at ${frameRate}fps...`);
-  const recordStart = Date.now();
+  console.log(`🎬 Recording for ${duration}ms...`);
   await new Promise(r=>setTimeout(r,duration));
-  
-  const actualDuration = Date.now() - recordStart;
-  console.log(`🎬 Stopping recording... (captured ${frameCounter} frames in ${actualDuration}ms)`);
-  
   live=false;
+  
+  const actualDuration = Date.now() - startTime;
+  const actualFps = frameCount / (actualDuration / 1000);
+  console.log(`🎬 Stopping recording... (captured ${frameCount} frames in ${actualDuration}ms)`);
+  console.log(`📊 Actual capture rate: ${actualFps.toFixed(1)} fps (target: ${frameRate} fps)`);
+  
   await Page.stopScreencast();
   ff.stdin.end();
   
   // Wait for FFmpeg to finish with timeout
   await Promise.race([
-    new Promise(r=>ff.on('close', (code) => {
-      console.log(`🎞️ FFmpeg finished with code: ${code}`);
-      r();
-    })),
-    new Promise((_,reject)=>setTimeout(()=>reject(new Error('FFmpeg timeout')), 45000))
+    new Promise(r=>ff.on('close',r)),
+    new Promise((_,reject)=>setTimeout(()=>reject(new Error('FFmpeg timeout')), 30000))
   ]);
   await cdp.close();
   await browser.close();
 
   if (!fs.existsSync(out) || !fs.statSync(out).size) throw new Error('Empty output');
-  
-  const fileSize = fs.statSync(out).size;
-  const avgFPS = frameCounter / (actualDuration / 1000);
   console.log(`✅ Saved smooth video → ${out}`);
-  console.log(`📊 Stats: ${Math.round(fileSize/1024)}KB, ${frameCounter} frames, ${avgFPS.toFixed(1)} avg fps`);
   
   return out;
 }
 
 if (require.main === module) {
   const [,,url,...a]=process.argv;
-  if(!url){console.log('Usage: node record.js <url> --duration 30000 --fps 12 --quality 50');process.exit(1);} 
+  if(!url){console.log('Usage: node record.js <url> --duration 30000');process.exit(1);} 
   const get=f=>a.includes(f)?Number(a[a.indexOf(f)+1]):undefined;
-  recordWebsite(url,{
-    duration: get('--duration') || 30000,
-    frameRate: get('--fps') || 12,
-    quality: get('--quality') || 50,
-    verbose: a.includes('--verbose')
-  }).catch(e=>{console.error('❌',e);process.exit(1);});
+  recordWebsite(url,{duration:get('--duration')||30000,verbose:a.includes('--verbose')})
+    .catch(e=>{console.error('❌',e);process.exit(1);});
 }
 
 module.exports={ recordWebsite };
