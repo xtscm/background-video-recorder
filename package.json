@@ -1,0 +1,33 @@
+{
+  "name": "background-video-recorder",
+  "version": "1.0.0",
+  "description": "A web UI for recording websites as videos using Playwright",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "record": "node record-website.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "playwright",
+    "video",
+    "recording",
+    "website",
+    "screen-capture"
+  ],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@ffmpeg-installer/ffmpeg": "^1.1.0",
+    "chrome-launcher": "^1.2.0",
+    "chrome-remote-interface": "^0.33.3",
+    "express": "^4.21.2",
+    "playwright": "^1.54.1",
+    "puppeteer-core": "^24.12.1"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}

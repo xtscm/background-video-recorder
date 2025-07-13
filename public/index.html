@@ -1,0 +1,932 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Recorder Queue</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f7fa;
+            color: #333;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+            color: #2c3e50;
+        }
+
+        .header p {
+            color: #7f8c8d;
+            font-size: 1.1rem;
+        }
+
+        .form-card {
+            background: white;
+            border-radius: 12px;
+            padding: 2rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 2rem;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .input-group input, .input-group select {
+            flex: 1;
+            padding: 0.75rem;
+            border: 2px solid #e1e8ed;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.3s;
+        }
+
+        .input-group input:focus, .input-group select:focus {
+            outline: none;
+            border-color: #3498db;
+        }
+
+        .btn {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+
+        .btn:hover {
+            background: #2980b9;
+            transform: translateY(-1px);
+        }
+
+        .btn:disabled {
+            background: #bdc3c7;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .queue-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 12px;
+            text-align: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .stat-number {
+            font-size: 2rem;
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-label {
+            color: #7f8c8d;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .queued { color: #f39c12; }
+        .running { color: #3498db; }
+        .completed { color: #27ae60; }
+        .failed { color: #e74c3c; }
+
+        .jobs-container {
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .jobs-header {
+            background: #34495e;
+            color: white;
+            padding: 1rem 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .jobs-list {
+            max-height: 500px;
+            overflow-y: auto;
+        }
+
+        .job-item {
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid #ecf0f1;
+            display: flex;
+            justify-content: between;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .job-item:last-child {
+            border-bottom: none;
+        }
+
+        .job-info {
+            flex: 1;
+        }
+
+        .job-url {
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+            color: #2c3e50;
+        }
+
+        .job-meta {
+            font-size: 0.85rem;
+            color: #7f8c8d;
+        }
+
+        .job-status {
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .status-queued {
+            background: #fef9e7;
+            color: #f39c12;
+        }
+
+        .status-recording {
+            background: #ebf3fd;
+            color: #3498db;
+        }
+
+        .status-completed {
+            background: #eafaf1;
+            color: #27ae60;
+        }
+
+        .status-failed {
+            background: #fdebee;
+            color: #e74c3c;
+        }
+
+        .progress-bar {
+            width: 100px;
+            height: 6px;
+            background: #ecf0f1;
+            border-radius: 3px;
+            overflow: hidden;
+            margin: 0.5rem 0;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: #3498db;
+            transition: width 0.3s;
+        }
+
+        .download-btn {
+            background: #27ae60;
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: background 0.3s;
+        }
+
+        .download-btn:hover {
+            background: #229954;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            color: #7f8c8d;
+        }
+
+        .empty-state svg {
+            width: 80px;
+            height: 80px;
+            margin-bottom: 1rem;
+            opacity: 0.5;
+        }
+
+        .preview-section {
+            background: white;
+            border-radius: 12px;
+            padding: 2rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 2rem;
+            display: none;
+        }
+
+        .preview-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .preview-controls {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        .preview-container {
+            position: relative;
+            width: 100%;
+            height: 600px;
+            border: 2px solid #e1e8ed;
+            border-radius: 8px;
+            overflow: auto;
+            background: #f8f9fa;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            padding: 20px;
+        }
+
+        .screenshot-wrapper {
+            position: relative;
+            max-width: 960px;
+            max-height: 540px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            border-radius: 8px;
+            overflow: hidden;
+            background: #f8f9fa;
+        }
+
+        .screenshot-image {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        .loading-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 4rem 2rem;
+            color: #7f8c8d;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid #e1e8ed;
+            border-top: 3px solid #3498db;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 1rem;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .crop-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+
+        .crop-selection {
+            position: absolute;
+            border: 2px solid #3498db;
+            background: rgba(52, 152, 219, 0.1);
+            cursor: move;
+            pointer-events: all;
+            min-width: 50px;
+            min-height: 50px;
+        }
+
+        .crop-handle {
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            background: #3498db;
+            border: 1px solid white;
+            cursor: pointer;
+        }
+
+        .crop-handle.nw { top: -4px; left: -4px; cursor: nw-resize; }
+        .crop-handle.ne { top: -4px; right: -4px; cursor: ne-resize; }
+        .crop-handle.sw { bottom: -4px; left: -4px; cursor: sw-resize; }
+        .crop-handle.se { bottom: -4px; right: -4px; cursor: se-resize; }
+        .crop-handle.n { top: -4px; left: 50%; transform: translateX(-50%); cursor: n-resize; }
+        .crop-handle.s { bottom: -4px; left: 50%; transform: translateX(-50%); cursor: s-resize; }
+        .crop-handle.w { top: 50%; left: -4px; transform: translateY(-50%); cursor: w-resize; }
+        .crop-handle.e { top: 50%; right: -4px; transform: translateY(-50%); cursor: e-resize; }
+
+        .crop-info {
+            position: absolute;
+            top: -30px;
+            left: 0;
+            background: #3498db;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            white-space: nowrap;
+        }
+
+        .viewport-selector {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .viewport-btn {
+            padding: 0.5rem 1rem;
+            border: 2px solid #e1e8ed;
+            background: white;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.3s;
+        }
+
+        .viewport-btn.active {
+            border-color: #3498db;
+            background: #3498db;
+            color: white;
+        }
+
+        .crop-coordinates {
+            background: #f8f9fa;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-top: 1rem;
+            font-family: monospace;
+            font-size: 0.9rem;
+        }
+
+        @media (max-width: 768px) {
+            .input-group {
+                flex-direction: column;
+            }
+            
+            .job-item {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 0.5rem;
+            }
+            
+            .job-meta {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎬 Video Recorder</h1>
+            <p>Queue multiple websites for recording with parallel processing</p>
+        </div>
+
+        <div class="form-card">
+            <form id="recordForm">
+                <div class="input-group">
+                    <input 
+                        type="url" 
+                        id="url" 
+                        placeholder="https://example.com" 
+                        required
+                    />
+                    <select id="duration">
+                        <option value="10000">10 seconds</option>
+                        <option value="30000" selected>30 seconds</option>
+                        <option value="60000">1 minute</option>
+                        <option value="120000">2 minutes</option>
+                        <option value="300000">5 minutes</option>
+                    </select>
+                    <button type="button" class="btn" onclick="showPreview()">Preview & Crop</button>
+                    <button type="submit" class="btn">Add to Queue</button>
+                </div>
+            </form>
+        </div>
+
+        <div class="preview-section" id="previewSection">
+            <div class="preview-header">
+                <h3>Preview & Crop Selection</h3>
+                <div class="preview-controls">
+                    <div class="viewport-selector">
+                        <span><strong>Desktop Preview (1920×1080)</strong></span>
+                    </div>
+                    <button class="btn" onclick="resetCrop()">Reset Crop</button>
+                    <button class="btn" onclick="hidePreview()">Close Preview</button>
+                </div>
+            </div>
+            <div class="preview-container" id="previewContainer">
+                <div class="screenshot-wrapper" id="screenshotWrapper">
+                    <div class="loading-state" id="loadingState">
+                        <div class="spinner"></div>
+                        <p>Taking screenshot...</p>
+                    </div>
+                    <img id="screenshotImage" class="screenshot-image" style="display: none;" />
+                    <div class="crop-overlay">
+                        <div class="crop-selection" id="cropSelection">
+                            <div class="crop-info" id="cropInfo">1920 × 1080</div>
+                            <div class="crop-handle nw"></div>
+                            <div class="crop-handle ne"></div>
+                            <div class="crop-handle sw"></div>
+                            <div class="crop-handle se"></div>
+                            <div class="crop-handle n"></div>
+                            <div class="crop-handle s"></div>
+                            <div class="crop-handle w"></div>
+                            <div class="crop-handle e"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="crop-coordinates" id="cropCoordinates">
+                X: 0, Y: 0, Width: 1920, Height: 1080
+            </div>
+        </div>
+
+        <div class="queue-stats">
+            <div class="stat-card">
+                <div class="stat-number queued" id="queuedCount">0</div>
+                <div class="stat-label">Queued</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number running" id="runningCount">0</div>
+                <div class="stat-label">Recording</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number completed" id="completedCount">0</div>
+                <div class="stat-label">Completed</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number failed" id="failedCount">0</div>
+                <div class="stat-label">Failed</div>
+            </div>
+        </div>
+
+        <div class="jobs-container">
+            <div class="jobs-header">
+                <h3>Recording Queue</h3>
+                <button class="btn" onclick="refreshQueue()">Refresh</button>
+            </div>
+            <div class="jobs-list" id="jobsList">
+                <div class="empty-state">
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                    </svg>
+                    <p>No recordings in queue</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let refreshInterval;
+        let isDragging = false;
+        let isResizing = false;
+        let dragStart = { x: 0, y: 0 };
+        let cropData = { x: 0, y: 0, width: 1920, height: 1080 };
+        let currentViewport = 'desktop';
+        let resizeHandle = null;
+
+        const desktopSize = { width: 1920, height: 1080 };
+
+        async function showPreview() {
+            const url = document.getElementById('url').value;
+            if (!url) {
+                showToast('Please enter a URL first', 'error');
+                return;
+            }
+
+            const previewSection = document.getElementById('previewSection');
+            const loadingState = document.getElementById('loadingState');
+            const screenshotImage = document.getElementById('screenshotImage');
+            
+            previewSection.style.display = 'block';
+            loadingState.style.display = 'flex';
+            screenshotImage.style.display = 'none';
+            
+            try {
+                // Take screenshot via API
+                const response = await fetch('/api/screenshot', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        url: url,
+                        width: desktopSize.width,
+                        height: desktopSize.height
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to take screenshot');
+                }
+
+                const blob = await response.blob();
+                const imageUrl = URL.createObjectURL(blob);
+                
+                screenshotImage.onload = () => {
+                    loadingState.style.display = 'none';
+                    screenshotImage.style.display = 'block';
+                    resetCrop();
+                    setupCropHandlers();
+                };
+                
+                screenshotImage.src = imageUrl;
+                
+            } catch (error) {
+                showToast(`Screenshot failed: ${error.message}`, 'error');
+                loadingState.style.display = 'none';
+            }
+        }
+
+        function hidePreview() {
+            const previewSection = document.getElementById('previewSection');
+            const screenshotImage = document.getElementById('screenshotImage');
+            
+            previewSection.style.display = 'none';
+            
+            // Clean up blob URL
+            if (screenshotImage.src.startsWith('blob:')) {
+                URL.revokeObjectURL(screenshotImage.src);
+            }
+        }
+
+        function resetCrop() {
+            cropData = { x: 0, y: 0, width: desktopSize.width, height: desktopSize.height };
+            updateCropDisplay();
+        }
+
+        function updateCropDisplay() {
+            const cropSelection = document.getElementById('cropSelection');
+            const cropInfo = document.getElementById('cropInfo');
+            const cropCoordinates = document.getElementById('cropCoordinates');
+            const screenshotImage = document.getElementById('screenshotImage');
+            
+            if (!screenshotImage.complete) return;
+            
+            // Calculate scale factor between actual image size and displayed image size
+            const imageRect = screenshotImage.getBoundingClientRect();
+            const scaleX = imageRect.width / desktopSize.width;
+            const scaleY = imageRect.height / desktopSize.height;
+            
+            // Position crop selection relative to the displayed image
+            cropSelection.style.left = (cropData.x * scaleX) + 'px';
+            cropSelection.style.top = (cropData.y * scaleY) + 'px';
+            cropSelection.style.width = (cropData.width * scaleX) + 'px';
+            cropSelection.style.height = (cropData.height * scaleY) + 'px';
+            
+            cropInfo.textContent = `${cropData.width} × ${cropData.height}`;
+            cropCoordinates.textContent = `X: ${cropData.x}, Y: ${cropData.y}, Width: ${cropData.width}, Height: ${cropData.height}`;
+        }
+
+        function setupCropHandlers() {
+            const cropSelection = document.getElementById('cropSelection');
+            const handles = cropSelection.querySelectorAll('.crop-handle');
+            
+            // Main crop area dragging
+            cropSelection.addEventListener('mousedown', startDrag);
+            
+            // Handle resizing
+            handles.forEach(handle => {
+                handle.addEventListener('mousedown', (e) => startResize(e, handle.className.split(' ')[1]));
+            });
+            
+            document.addEventListener('mousemove', handleMouseMove);
+            document.addEventListener('mouseup', stopDragResize);
+        }
+
+        function startDrag(e) {
+            if (e.target.classList.contains('crop-handle')) return;
+            isDragging = true;
+            const screenshotImage = document.getElementById('screenshotImage');
+            const rect = screenshotImage.getBoundingClientRect();
+            const imageRect = screenshotImage.getBoundingClientRect();
+            const scaleX = imageRect.width / desktopSize.width;
+            const scaleY = imageRect.height / desktopSize.height;
+            
+            dragStart.x = e.clientX - rect.left - (cropData.x * scaleX);
+            dragStart.y = e.clientY - rect.top - (cropData.y * scaleY);
+            e.preventDefault();
+        }
+
+        function startResize(e, handle) {
+            isResizing = true;
+            resizeHandle = handle;
+            const screenshotImage = document.getElementById('screenshotImage');
+            const rect = screenshotImage.getBoundingClientRect();
+            dragStart.x = e.clientX - rect.left;
+            dragStart.y = e.clientY - rect.top;
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        function handleMouseMove(e) {
+            if (!isDragging && !isResizing) return;
+            
+            const screenshotImage = document.getElementById('screenshotImage');
+            const rect = screenshotImage.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+            
+            // Convert from displayed coordinates to actual coordinates
+            const scaleX = rect.width / desktopSize.width;
+            const scaleY = rect.height / desktopSize.height;
+            const actualMouseX = mouseX / scaleX;
+            const actualMouseY = mouseY / scaleY;
+            
+            if (isDragging) {
+                const actualDragStartX = dragStart.x / scaleX;
+                const actualDragStartY = dragStart.y / scaleY;
+                const maxX = desktopSize.width - cropData.width;
+                const maxY = desktopSize.height - cropData.height;
+                const newX = Math.max(0, Math.min(actualMouseX - actualDragStartX, maxX));
+                const newY = Math.max(0, Math.min(actualMouseY - actualDragStartY, maxY));
+                
+                cropData.x = Math.round(newX);
+                cropData.y = Math.round(newY);
+            } else if (isResizing) {
+                handleResize(actualMouseX, actualMouseY);
+            }
+            
+            updateCropDisplay();
+        }
+
+        function handleResize(mouseX, mouseY) {
+            switch (resizeHandle) {
+                case 'nw':
+                    cropData.width = Math.max(50, cropData.width + (cropData.x - mouseX));
+                    cropData.height = Math.max(50, cropData.height + (cropData.y - mouseY));
+                    cropData.x = Math.max(0, mouseX);
+                    cropData.y = Math.max(0, mouseY);
+                    break;
+                case 'ne':
+                    cropData.width = Math.max(50, mouseX - cropData.x);
+                    cropData.height = Math.max(50, cropData.height + (cropData.y - mouseY));
+                    cropData.y = Math.max(0, mouseY);
+                    break;
+                case 'sw':
+                    cropData.width = Math.max(50, cropData.width + (cropData.x - mouseX));
+                    cropData.height = Math.max(50, mouseY - cropData.y);
+                    cropData.x = Math.max(0, mouseX);
+                    break;
+                case 'se':
+                    cropData.width = Math.max(50, mouseX - cropData.x);
+                    cropData.height = Math.max(50, mouseY - cropData.y);
+                    break;
+                case 'n':
+                    cropData.height = Math.max(50, cropData.height + (cropData.y - mouseY));
+                    cropData.y = Math.max(0, mouseY);
+                    break;
+                case 's':
+                    cropData.height = Math.max(50, mouseY - cropData.y);
+                    break;
+                case 'w':
+                    cropData.width = Math.max(50, cropData.width + (cropData.x - mouseX));
+                    cropData.x = Math.max(0, mouseX);
+                    break;
+                case 'e':
+                    cropData.width = Math.max(50, mouseX - cropData.x);
+                    break;
+            }
+            
+            // Ensure crop doesn't go out of bounds
+            cropData.x = Math.max(0, Math.min(cropData.x, desktopSize.width - cropData.width));
+            cropData.y = Math.max(0, Math.min(cropData.y, desktopSize.height - cropData.height));
+            cropData.width = Math.min(cropData.width, desktopSize.width - cropData.x);
+            cropData.height = Math.min(cropData.height, desktopSize.height - cropData.y);
+            
+            // Round values
+            cropData.x = Math.round(cropData.x);
+            cropData.y = Math.round(cropData.y);
+            cropData.width = Math.round(cropData.width);
+            cropData.height = Math.round(cropData.height);
+        }
+
+        function stopDragResize() {
+            isDragging = false;
+            isResizing = false;
+            resizeHandle = null;
+        }
+
+        async function addToQueue(url, duration) {
+            try {
+                const response = await fetch('/api/record', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        url,
+                        duration: parseInt(duration),
+                        width: cropData.width,
+                        height: cropData.height,
+                        cropX: cropData.x,
+                        cropY: cropData.y,
+                        viewportWidth: desktopSize.width,
+                        viewportHeight: desktopSize.height
+                    })
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    showToast(`Added to queue: ${new URL(url).hostname}`, 'success');
+                    refreshQueue();
+                } else {
+                    showToast(`Error: ${result.error}`, 'error');
+                }
+            } catch (error) {
+                showToast(`Network error: ${error.message}`, 'error');
+            }
+        }
+
+        async function refreshQueue() {
+            try {
+                const response = await fetch('/api/queue');
+                const data = await response.json();
+                
+                updateStats(data.status);
+                updateJobsList(data.jobs);
+            } catch (error) {
+                console.error('Failed to refresh queue:', error);
+            }
+        }
+
+        function updateStats(status) {
+            document.getElementById('queuedCount').textContent = status.queued;
+            document.getElementById('runningCount').textContent = status.running;
+            document.getElementById('completedCount').textContent = status.completed;
+            document.getElementById('failedCount').textContent = status.failed;
+        }
+
+        function updateJobsList(jobs) {
+            const jobsList = document.getElementById('jobsList');
+            
+            if (jobs.length === 0) {
+                jobsList.innerHTML = `
+                    <div class="empty-state">
+                        <svg viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                        </svg>
+                        <p>No recordings in queue</p>
+                    </div>
+                `;
+                return;
+            }
+
+            jobsList.innerHTML = jobs.map(job => `
+                <div class="job-item">
+                    <div class="job-info">
+                        <div class="job-url">${job.url}</div>
+                        <div class="job-meta">
+                            Job #${job.id} • ${job.duration/1000}s • ${formatTime(job.startTime)} 
+                            ${job.endTime ? `• Finished ${formatTime(job.endTime)}` : ''}
+                            ${job.fileSize ? `• ${formatFileSize(job.fileSize)}` : ''}
+                            ${job.error ? `• Error: ${job.error}` : ''}
+                        </div>
+                        ${job.status === 'recording' ? `
+                            <div class="progress-bar">
+                                <div class="progress-fill" style="width: ${job.progress || 0}%"></div>
+                            </div>
+                        ` : ''}
+                    </div>
+                    <div class="job-status status-${job.status}">${job.status}</div>
+                    ${job.status === 'completed' && job.outputPath ? `
+                        <button class="download-btn" onclick="downloadRecording('${job.outputPath}', ${job.id})">
+                            Download
+                        </button>
+                    ` : ''}
+                </div>
+            `).join('');
+        }
+
+        async function downloadRecording(filePath, jobId) {
+            try {
+                const response = await fetch(`/api/download?file=${encodeURIComponent(filePath)}`);
+                
+                if (!response.ok) {
+                    throw new Error('Download failed');
+                }
+                
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `recording-${jobId}.mp4`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+                
+                showToast('Download started', 'success');
+            } catch (error) {
+                showToast(`Download failed: ${error.message}`, 'error');
+            }
+        }
+
+        function formatTime(timestamp) {
+            if (!timestamp) return '';
+            return new Date(timestamp).toLocaleTimeString();
+        }
+
+        function formatFileSize(bytes) {
+            if (!bytes) return '';
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(1024));
+            return Math.round(bytes / Math.pow(1024, i) * 100) / 100 + ' ' + sizes[i];
+        }
+
+        function showToast(message, type) {
+            const toast = document.createElement('div');
+            toast.textContent = message;
+            toast.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                padding: 12px 20px;
+                border-radius: 8px;
+                color: white;
+                font-weight: 600;
+                z-index: 1000;
+                background: ${type === 'success' ? '#27ae60' : '#e74c3c'};
+                transform: translateX(100%);
+                transition: transform 0.3s;
+            `;
+            
+            document.body.appendChild(toast);
+            setTimeout(() => toast.style.transform = 'translateX(0)', 100);
+            setTimeout(() => {
+                toast.style.transform = 'translateX(100%)';
+                setTimeout(() => document.body.removeChild(toast), 300);
+            }, 3000);
+        }
+
+        document.getElementById('recordForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const url = document.getElementById('url').value;
+            const duration = document.getElementById('duration').value;
+            
+            if (!url) {
+                showToast('Please enter a URL', 'error');
+                return;
+            }
+            
+            addToQueue(url, duration);
+            document.getElementById('url').value = '';
+        });
+
+        refreshQueue();
+        refreshInterval = setInterval(refreshQueue, 2000);
+
+        window.addEventListener('beforeunload', () => {
+            if (refreshInterval) {
+                clearInterval(refreshInterval);
+            }
+        });
+    </script>
+</body>
+</html>

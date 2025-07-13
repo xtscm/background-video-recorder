@@ -1,0 +1,1374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Website Video Recorder</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+            color: white;
+        }
+
+        header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+
+        header p {
+            font-size: 1.2rem;
+            opacity: 0.9;
+        }
+
+        main {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            margin-bottom: 30px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #555;
+        }
+
+        input, select, textarea {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e1e5e9;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: border-color 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        input:invalid {
+            border-color: #ff6b6b;
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .checkbox-group input[type="checkbox"] {
+            width: auto;
+            margin: 0;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+            text-align: center;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #f8f9fa;
+            color: #6c757d;
+            border: 2px solid #e9ecef;
+        }
+
+        .btn-secondary:hover:not(:disabled) {
+            background: #e9ecef;
+            border-color: #dee2e6;
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .btn-small {
+            padding: 8px 16px;
+            font-size: 14px;
+        }
+
+        .form-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+            margin-top: 30px;
+        }
+
+        .preview-section {
+            margin-top: 30px;
+            border-top: 2px solid #f1f3f4;
+            padding-top: 30px;
+        }
+
+        .preview-controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .preview-container {
+            position: relative;
+            border: 2px solid #e1e5e9;
+            border-radius: 10px;
+            overflow: hidden;
+            background: #f8f9fa;
+            min-height: 400px;
+        }
+
+        .preview-frame {
+            width: 100%;
+            height: 400px;
+            border: none;
+        }
+
+        .crop-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            pointer-events: none;
+        }
+
+        .crop-selection {
+            position: absolute;
+            border: 2px solid #667eea;
+            background: rgba(102, 126, 234, 0.1);
+            cursor: move;
+            pointer-events: all;
+            min-width: 100px;
+            min-height: 100px;
+        }
+
+        .crop-handle {
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            background: #667eea;
+            border: 2px solid white;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        .crop-handle-nw { top: -6px; left: -6px; cursor: nw-resize; }
+        .crop-handle-ne { top: -6px; right: -6px; cursor: ne-resize; }
+        .crop-handle-sw { bottom: -6px; left: -6px; cursor: sw-resize; }
+        .crop-handle-se { bottom: -6px; right: -6px; cursor: se-resize; }
+
+        .crop-info {
+            position: absolute;
+            top: -30px;
+            left: 0;
+            background: #667eea;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            white-space: nowrap;
+        }
+
+        .crop-coordinates {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .coord-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        .coord-group label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 0;
+        }
+
+        .coord-group input {
+            width: 80px;
+            padding: 8px;
+            margin: 0;
+        }
+
+        .status, .result, .error {
+            margin-top: 30px;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .status {
+            background: #e3f2fd;
+            border: 2px solid #2196f3;
+            color: #1976d2;
+        }
+
+        .result {
+            background: #e8f5e8;
+            border: 2px solid #4caf50;
+            color: #2e7d32;
+        }
+
+        .error {
+            background: #ffebee;
+            border: 2px solid #f44336;
+            color: #c62828;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #e3f2fd;
+            border-radius: 50%;
+            border-top-color: #2196f3;
+            animation: spin 1s ease-in-out infinite;
+            margin-right: 10px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .result-info {
+            margin: 20px 0;
+            text-align: left;
+        }
+
+        .result-info p {
+            margin-bottom: 8px;
+        }
+
+        .result-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            margin-top: 20px;
+        }
+
+        .recordings-section {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+
+        .recordings-section h3 {
+            margin-bottom: 20px;
+            color: #333;
+        }
+
+        .recordings-list {
+            margin-bottom: 20px;
+        }
+
+        .recording-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            border: 2px solid #f1f3f4;
+            border-radius: 10px;
+            margin-bottom: 10px;
+            transition: border-color 0.3s ease;
+        }
+
+        .recording-item:hover {
+            border-color: #667eea;
+        }
+
+        .recording-info {
+            flex-grow: 1;
+        }
+
+        .recording-name {
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .recording-details {
+            font-size: 14px;
+            color: #6c757d;
+        }
+
+        .recording-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .no-recordings {
+            text-align: center;
+            color: #6c757d;
+            font-style: italic;
+            padding: 40px;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 12px 20px;
+            border-radius: 8px;
+            color: white;
+            font-weight: 600;
+            z-index: 1000;
+            transform: translateX(100%);
+            transition: transform 0.3s ease;
+        }
+
+        .toast.show {
+            transform: translateX(0);
+        }
+
+        .toast.success { background: #4caf50; }
+        .toast.error { background: #f44336; }
+        .toast.info { background: #2196f3; }
+
+        @media (max-width: 768px) {
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+            
+            .form-actions {
+                justify-content: stretch;
+            }
+            
+            .form-actions .btn {
+                flex: 1;
+            }
+            
+            .crop-coordinates {
+                grid-template-columns: 1fr;
+            }
+            
+            .recording-item {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 15px;
+            }
+            
+            .recording-actions {
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎬 Website Video Recorder</h1>
+            <p>Record any website as a video with smart background detection</p>
+        </header>
+
+        <main>
+            <form id="recordForm" novalidate>
+                <div class="form-group">
+                    <label for="url">Website URL *:</label>
+                    <input type="url" id="url" name="url" placeholder="https://example.com" required
+                           aria-describedby="url-error">
+                    <div id="url-error" class="error-message" role="alert"></div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="duration">Duration (seconds):</label>
+                        <input type="number" id="duration" name="duration" value="30" min="5" max="300" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="resolution">Resolution:</label>
+                        <select id="resolution" name="resolution">
+                            <option value="1920x1080">1920x1080 (Full HD)</option>
+                            <option value="1280x720">1280x720 (HD)</option>
+                            <option value="1366x768">1366x768</option>
+                            <option value="1024x768">1024x768</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <div class="checkbox-group">
+                            <input type="checkbox" id="headless" name="headless" checked>
+                            <label for="headless">Headless mode (run in background)</label>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <div class="checkbox-group">
+                            <input type="checkbox" id="recordAudio" name="recordAudio" checked>
+                            <label for="recordAudio">Record audio</label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="outputFile">Custom filename (optional):</label>
+                    <input type="text" id="outputFile" name="outputFile" placeholder="my-recording.webm"
+                           pattern="^[a-zA-Z0-9._-]+\.(webm|mp4)$" 
+                           title="Filename must end with .webm or .mp4">
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" id="previewBtn" class="btn btn-secondary">Preview & Crop</button>
+                    <button type="submit" id="recordBtn" class="btn btn-primary">
+                        <span class="btn-text">Start Recording</span>
+                        <span class="btn-spinner hidden">
+                            <span class="spinner"></span>Recording...
+                        </span>
+                    </button>
+                </div>
+            </form>
+
+            <div id="preview" class="preview-section hidden">
+                <h3>Website Preview & Crop Selection</h3>
+                <div class="preview-controls">
+                    <button id="fullPageBtn" class="btn btn-secondary btn-small">Full Page</button>
+                    <button id="resetCropBtn" class="btn btn-secondary btn-small">Reset Crop</button>
+                    <button id="closePreviewBtn" class="btn btn-secondary btn-small">Close Preview</button>
+                </div>
+                <div class="preview-container">
+                    <iframe id="previewFrame" class="preview-frame" src="" title="Website preview"></iframe>
+                    <div id="cropOverlay" class="crop-overlay">
+                        <div class="crop-selection">
+                            <div class="crop-handle crop-handle-nw" aria-label="Resize northwest"></div>
+                            <div class="crop-handle crop-handle-ne" aria-label="Resize northeast"></div>
+                            <div class="crop-handle crop-handle-sw" aria-label="Resize southwest"></div>
+                            <div class="crop-handle crop-handle-se" aria-label="Resize southeast"></div>
+                            <div class="crop-info">
+                                <span id="cropDimensions">1920 x 1080</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="crop-coordinates">
+                    <div class="coord-group">
+                        <label>X: <input type="number" id="cropX" value="0" min="0"></label>
+                        <label>Y: <input type="number" id="cropY" value="0" min="0"></label>
+                    </div>
+                    <div class="coord-group">
+                        <label>Width: <input type="number" id="cropWidth" value="1920" min="100"></label>
+                        <label>Height: <input type="number" id="cropHeight" value="1080" min="100"></label>
+                    </div>
+                </div>
+            </div>
+
+            <div id="status" class="status hidden">
+                <div class="spinner"></div>
+                <span id="statusText">Starting recording...</span>
+            </div>
+
+            <div id="result" class="result hidden">
+                <h3>✅ Recording Complete!</h3>
+                <div class="result-info">
+                    <p><strong>File:</strong> <span id="fileName"></span></p>
+                    <p><strong>Size:</strong> <span id="fileSize"></span></p>
+                    <p><strong>URL:</strong> <span id="recordedUrl"></span></p>
+                    <p><strong>Duration:</strong> <span id="recordedDuration"></span></p>
+                </div>
+                <div class="result-actions">
+                    <button id="downloadBtn" class="btn btn-secondary">Download Video</button>
+                    <button id="newRecordingBtn" class="btn btn-primary">New Recording</button>
+                </div>
+            </div>
+
+            <div id="error" class="error hidden">
+                <h3>❌ Recording Failed</h3>
+                <p id="errorMessage"></p>
+                <button id="retryBtn" class="btn btn-primary">Try Again</button>
+            </div>
+        </main>
+
+        <footer>
+            <div class="recordings-section">
+                <h3>📁 Recent Recordings</h3>
+                <div id="recordingsList" class="recordings-list">
+                    <p class="no-recordings">No recordings yet</p>
+                </div>
+                <button id="refreshBtn" class="btn btn-secondary">Refresh List</button>
+            </div>
+        </footer>
+    </div>
+
+    <script>
+        // Utility functions
+        const debounce = (func, wait) => {
+            let timeout;
+            return function executedFunction(...args) {
+                const later = () => {
+                    clearTimeout(timeout);
+                    func(...args);
+                };
+                clearTimeout(timeout);
+                timeout = setTimeout(later, wait);
+            };
+        };
+
+        const throttle = (func, limit) => {
+            let inThrottle;
+            return function() {
+                const args = arguments;
+                const context = this;
+                if (!inThrottle) {
+                    func.apply(context, args);
+                    inThrottle = true;
+                    setTimeout(() => inThrottle = false, limit);
+                }
+            }
+        };
+
+        const formatFileSize = (bytes) => {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        };
+
+        const formatDuration = (seconds) => {
+            const minutes = Math.floor(seconds / 60);
+            const remainingSeconds = seconds % 60;
+            return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+        };
+
+        const isValidUrl = (string) => {
+            try {
+                const url = new URL(string);
+                return url.protocol === "http:" || url.protocol === "https:";
+            } catch (_) {
+                return false;
+            }
+        };
+
+        const sanitizeFilename = (filename) => {
+            return filename.replace(/[^a-z0-9.\-_]/gi, '_');
+        };
+
+        // Toast notification system
+        class ToastManager {
+            show(message, type = 'info', duration = 3000) {
+                const toast = document.createElement('div');
+                toast.className = `toast ${type}`;
+                toast.textContent = message;
+                document.body.appendChild(toast);
+
+                // Trigger animation
+                setTimeout(() => toast.classList.add('show'), 100);
+
+                // Remove toast
+                setTimeout(() => {
+                    toast.classList.remove('show');
+                    setTimeout(() => document.body.removeChild(toast), 300);
+                }, duration);
+            }
+        }
+
+        // API client with improved error handling
+        class APIClient {
+            constructor(baseUrl = '/api') {
+                this.baseUrl = baseUrl;
+            }
+
+            async request(endpoint, options = {}) {
+                const url = `${this.baseUrl}${endpoint}`;
+                const config = {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...options.headers
+                    },
+                    ...options
+                };
+
+                try {
+                    const response = await fetch(url, config);
+                    
+                    if (!response.ok) {
+                        const errorData = await response.json().catch(() => ({}));
+                        throw new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
+                    }
+
+                    return await response.json();
+                } catch (error) {
+                    if (error.name === 'TypeError' && error.message.includes('fetch')) {
+                        throw new Error('Network error. Please check your connection.');
+                    }
+                    throw error;
+                }
+            }
+
+            async downloadFile(endpoint) {
+                const url = `${this.baseUrl}${endpoint}`;
+                const response = await fetch(url);
+                
+                if (!response.ok) {
+                    throw new Error(`Download failed: ${response.statusText}`);
+                }
+                
+                return response.blob();
+            }
+        }
+
+        // Form validation
+        class FormValidator {
+            constructor(form) {
+                this.form = form;
+                this.errors = new Map();
+            }
+
+            validateField(field) {
+                const { name, value, type, required, pattern, min, max } = field;
+                const errors = [];
+
+                if (required && !value.trim()) {
+                    errors.push(`${this.getFieldLabel(name)} is required`);
+                    return errors;
+                }
+
+                if (!value.trim()) return errors; // Skip other validations if empty and not required
+
+                switch (type) {
+                    case 'url':
+                        if (!isValidUrl(value)) {
+                            errors.push('Please enter a valid URL (including http:// or https://)');
+                        }
+                        break;
+                    case 'number':
+                        const num = Number(value);
+                        if (isNaN(num)) {
+                            errors.push('Please enter a valid number');
+                        } else {
+                            if (min !== null && num < Number(min)) {
+                                errors.push(`Must be at least ${min}`);
+                            }
+                            if (max !== null && num > Number(max)) {
+                                errors.push(`Must be no more than ${max}`);
+                            }
+                        }
+                        break;
+                    case 'text':
+                        if (pattern) {
+                            const regex = new RegExp(pattern);
+                            if (!regex.test(value)) {
+                                errors.push(field.title || 'Invalid format');
+                            }
+                        }
+                        break;
+                }
+
+                return errors;
+            }
+
+            getFieldLabel(name) {
+                const label = this.form.querySelector(`label[for="${name}"]`);
+                return label ? label.textContent.replace('*:', '').replace(':', '') : name;
+            }
+
+            validate() {
+                this.errors.clear();
+                const fields = this.form.querySelectorAll('input[required], input[pattern], input[type="url"], input[type="number"]');
+                
+                fields.forEach(field => {
+                    const fieldErrors = this.validateField(field);
+                    if (fieldErrors.length > 0) {
+                        this.errors.set(field.name, fieldErrors);
+                    }
+                });
+
+                this.displayErrors();
+                return this.errors.size === 0;
+            }
+
+            displayErrors() {
+                // Clear previous errors
+                this.form.querySelectorAll('.error-message').forEach(el => {
+                    el.textContent = '';
+                    el.style.display = 'none';
+                });
+
+                // Display new errors
+                this.errors.forEach((errors, fieldName) => {
+                    const field = this.form.querySelector(`[name="${fieldName}"]`);
+                    const errorElement = this.form.querySelector(`#${fieldName}-error`);
+                    
+                    if (field) {
+                        field.style.borderColor = '#ff6b6b';
+                    }
+                    
+                    if (errorElement) {
+                        errorElement.textContent = errors[0];
+                        errorElement.style.display = 'block';
+                        errorElement.style.color = '#ff6b6b';
+                        errorElement.style.fontSize = '14px';
+                        errorElement.style.marginTop = '4px';
+                    }
+                });
+            }
+
+            clearErrors() {
+                this.errors.clear();
+                this.form.querySelectorAll('.error-message').forEach(el => {
+                    el.textContent = '';
+                    el.style.display = 'none';
+                });
+                this.form.querySelectorAll('input').forEach(input => {
+                    input.style.borderColor = '';
+                });
+            }
+        }
+
+        // Crop functionality as a separate class
+        class CropSelector {
+            constructor(container, options = {}) {
+                this.container = container;
+                this.overlay = container.querySelector('.crop-overlay');
+                this.selection = container.querySelector('.crop-selection');
+                this.dimensionsDisplay = container.querySelector('#cropDimensions');
+                
+                this.options = {
+                    minSize: 100,
+                    maxSize: null,
+                    aspectRatio: null,
+                    ...options
+                };
+
+                this.cropData = { x: 0, y: 0, width: 800, height: 600 };
+                this.isDragging = false;
+                this.isResizing = false;
+                this.dragStart = { x: 0, y: 0 };
+                this.resizeHandle = null;
+
+                this.initEvents();
+            }
+
+            initEvents() {
+                // Selection dragging
+                this.selection.addEventListener('mousedown', (e) => {
+                    if (e.target.classList.contains('crop-handle')) return;
+                    
+                    this.isDragging = true;
+                    const rect = this.overlay.getBoundingClientRect();
+                    this.dragStart = {
+                        x: e.clientX - rect.left - this.cropData.x,
+                        y: e.clientY - rect.top - this.cropData.y
+                    };
+                    e.preventDefault();
+                });
+
+                // Resize handles
+                this.container.querySelectorAll('.crop-handle').forEach(handle => {
+                    handle.addEventListener('mousedown', (e) => {
+                        this.isResizing = true;
+                        this.resizeHandle = handle.classList[1];
+                        e.stopPropagation();
+                        e.preventDefault();
+                    });
+                });
+
+                // Global mouse events
+                document.addEventListener('mousemove', throttle((e) => this.handleMouseMove(e), 16));
+                document.addEventListener('mouseup', () => this.handleMouseUp());
+
+                // Keyboard support
+                this.selection.addEventListener('keydown', (e) => this.handleKeyDown(e));
+                this.selection.setAttribute('tabindex', '0');
+            }
+
+            handleMouseMove(e) {
+                if (!this.isDragging && !this.isResizing) return;
+
+                const rect = this.overlay.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+
+                if (this.isDragging) {
+                    this.cropData.x = Math.max(0, Math.min(x - this.dragStart.x, rect.width - this.cropData.width));
+                    this.cropData.y = Math.max(0, Math.min(y - this.dragStart.y, rect.height - this.cropData.height));
+                } else if (this.isResizing) {
+                    this.handleResize(x, y, rect);
+                }
+
+                this.updateDisplay();
+                this.notifyChange();
+            }
+
+            handleResize(x, y, containerRect) {
+                const { minSize } = this.options;
+                const maxX = containerRect.width;
+                const maxY = containerRect.height;
+
+                switch (this.resizeHandle) {
+                    case 'crop-handle-nw':
+                        const newWidth = this.cropData.width + (this.cropData.x - x);
+                        const newHeight = this.cropData.height + (this.cropData.y - y);
+                        if (newWidth >= minSize && x >= 0) {
+                            this.cropData.width = newWidth;
+                            this.cropData.x = x;
+                        }
+                        if (newHeight >= minSize && y >= 0) {
+                            this.cropData.height = newHeight;
+                            this.cropData.y = y;
+                        }
+                        break;
+                    case 'crop-handle-ne':
+                        if (x - this.cropData.x >= minSize && x <= maxX) {
+                            this.cropData.width = x - this.cropData.x;
+                        }
+                        const newHeightNE = this.cropData.height + (this.cropData.y - y);
+                        if (newHeightNE >= minSize && y >= 0) {
+                            this.cropData.height = newHeightNE;
+                            this.cropData.y = y;
+                        }
+                        break;
+                    case 'crop-handle-sw':
+                        const newWidthSW = this.cropData.width + (this.cropData.x - x);
+                        if (newWidthSW >= minSize && x >= 0) {
+                            this.cropData.width = newWidthSW;
+                            this.cropData.x = x;
+                        }
+                        if (y - this.cropData.y >= minSize && y <= maxY) {
+                            this.cropData.height = y - this.cropData.y;
+                        }
+                        break;
+                    case 'crop-handle-se':
+                        if (x - this.cropData.x >= minSize && x <= maxX) {
+                            this.cropData.width = x - this.cropData.x;
+                        }
+                        if (y - this.cropData.y >= minSize && y <= maxY) {
+                            this.cropData.height = y - this.cropData.y;
+                        }
+                        break;
+                }
+            }
+
+            handleMouseUp() {
+                this.isDragging = false;
+                this.isResizing = false;
+                this.resizeHandle = null;
+            }
+
+            handleKeyDown(e) {
+                const step = e.shiftKey ? 10 : 1;
+                
+                switch(e.key) {
+                    case 'ArrowLeft':
+                        this.cropData.x = Math.max(0, this.cropData.x - step);
+                        break;
+                    case 'ArrowRight':
+                        this.cropData.x = Math.min(this.overlay.clientWidth - this.cropData.width, this.cropData.x + step);
+                        break;
+                    case 'ArrowUp':
+                        this.cropData.y = Math.max(0, this.cropData.y - step);
+                        break;
+                    case 'ArrowDown':
+                        this.cropData.y = Math.min(this.overlay.clientHeight - this.cropData.height, this.cropData.y + step);
+                        break;
+                    default:
+                        return;
+                }
+                
+                e.preventDefault();
+                this.updateDisplay();
+                this.notifyChange();
+            }
+
+            updateDisplay() {
+                this.selection.style.left = this.cropData.x + 'px';
+                this.selection.style.top = this.cropData.y + 'px';
+                this.selection.style.width = this.cropData.width + 'px';
+                this.selection.style.height = this.cropData.height + 'px';
+                
+                if (this.dimensionsDisplay) {
+                    this.dimensionsDisplay.textContent = 
+                        `${Math.round(this.cropData.width)} x ${Math.round(this.cropData.height)}`;
+                }
+            }
+
+            setCrop(x, y, width, height) {
+                this.cropData = { x, y, width, height };
+                this.updateDisplay();
+                this.notifyChange();
+            }
+
+            getCrop() {
+                return { ...this.cropData };
+            }
+
+            reset() {
+                const containerRect = this.overlay.getBoundingClientRect();
+                this.setCrop(0, 0, Math.min(800, containerRect.width), Math.min(600, containerRect.height));
+            }
+
+            notifyChange() {
+                if (this.onChange) {
+                    this.onChange(this.getCrop());
+                }
+            }
+        }
+
+        // Main application class
+        class VideoRecorderApp {
+            constructor() {
+                this.api = new APIClient();
+                this.toast = new ToastManager();
+                this.validator = new FormValidator(document.getElementById('recordForm'));
+                this.cropSelector = null;
+                this.currentVideoPath = null;
+
+                this.elements = {
+                    form: document.getElementById('recordForm'),
+                    urlInput: document.getElementById('url'),
+                    durationInput: document.getElementById('duration'),
+                    resolutionSelect: document.getElementById('resolution'),
+                    headlessCheckbox: document.getElementById('headless'),
+                    recordAudioCheckbox: document.getElementById('recordAudio'),
+                    outputFileInput: document.getElementById('outputFile'),
+                    recordBtn: document.getElementById('recordBtn'),
+                    btnText: document.querySelector('.btn-text'),
+                    btnSpinner: document.querySelector('.btn-spinner'),
+                    
+                    previewSection: document.getElementById('preview'),
+                    previewBtn: document.getElementById('previewBtn'),
+                    previewFrame: document.getElementById('previewFrame'),
+                    closePreviewBtn: document.getElementById('closePreviewBtn'),
+                    fullPageBtn: document.getElementById('fullPageBtn'),
+                    resetCropBtn: document.getElementById('resetCropBtn'),
+                    
+                    statusDiv: document.getElementById('status'),
+                    statusText: document.getElementById('statusText'),
+                    resultDiv: document.getElementById('result'),
+                    errorDiv: document.getElementById('error'),
+                    
+                    fileName: document.getElementById('fileName'),
+                    fileSize: document.getElementById('fileSize'),
+                    recordedUrl: document.getElementById('recordedUrl'),
+                    recordedDuration: document.getElementById('recordedDuration'),
+                    
+                    downloadBtn: document.getElementById('downloadBtn'),
+                    newRecordingBtn: document.getElementById('newRecordingBtn'),
+                    retryBtn: document.getElementById('retryBtn'),
+                    refreshBtn: document.getElementById('refreshBtn'),
+                    recordingsList: document.getElementById('recordingsList'),
+                    
+                    cropX: document.getElementById('cropX'),
+                    cropY: document.getElementById('cropY'),
+                    cropWidth: document.getElementById('cropWidth'),
+                    cropHeight: document.getElementById('cropHeight')
+                };
+
+                this.initEventListeners();
+                this.loadRecordings();
+            }
+
+            initEventListeners() {
+                // Form submission
+                this.elements.form.addEventListener('submit', (e) => this.handleSubmit(e));
+
+                // Real-time validation
+                this.elements.form.addEventListener('input', debounce(() => {
+                    this.validator.clearErrors();
+                }, 500));
+
+                // Button actions
+                this.elements.downloadBtn.addEventListener('click', () => this.downloadVideo());
+                this.elements.newRecordingBtn.addEventListener('click', () => this.resetForm());
+                this.elements.retryBtn.addEventListener('click', () => this.resetForm());
+                this.elements.refreshBtn.addEventListener('click', () => this.loadRecordings());
+
+                // Preview controls
+                this.elements.previewBtn.addEventListener('click', () => this.showPreview());
+                this.elements.closePreviewBtn.addEventListener('click', () => this.hidePreview());
+                this.elements.fullPageBtn.addEventListener('click', () => this.setFullPageCrop());
+                this.elements.resetCropBtn.addEventListener('click', () => this.resetCrop());
+
+                // Crop coordinate inputs
+                [this.elements.cropX, this.elements.cropY, this.elements.cropWidth, this.elements.cropHeight]
+                    .forEach(input => input.addEventListener('input', debounce(() => this.updateCropFromInputs(), 100)));
+
+                // URL validation on blur
+                this.elements.urlInput.addEventListener('blur', () => {
+                    if (this.elements.urlInput.value && !isValidUrl(this.elements.urlInput.value)) {
+                        this.toast.show('Please enter a valid URL', 'error');
+                    }
+                });
+
+                // Keyboard shortcuts
+                document.addEventListener('keydown', (e) => {
+                    if (e.ctrlKey || e.metaKey) {
+                        if (e.key === 'Enter') {
+                            e.preventDefault();
+                            this.elements.recordBtn.click();
+                        }
+                    }
+                });
+            }
+
+            async handleSubmit(event) {
+                event.preventDefault();
+                
+                if (!this.validator.validate()) {
+                    this.toast.show('Please fix the form errors', 'error');
+                    return;
+                }
+
+                const formData = new FormData(this.elements.form);
+                const [width, height] = formData.get('resolution').split('x').map(Number);
+                
+                const recordingData = {
+                    url: formData.get('url'),
+                    duration: parseInt(formData.get('duration')) * 1000,
+                    width,
+                    height,
+                    headless: formData.get('headless') === 'on',
+                    recordAudio: formData.get('recordAudio') === 'on',
+                    outputFile: formData.get('outputFile') || null,
+                    crop: this.cropSelector ? this.cropSelector.getCrop() : { x: 0, y: 0, width, height }
+                };
+
+                // Sanitize filename if provided
+                if (recordingData.outputFile) {
+                    recordingData.outputFile = sanitizeFilename(recordingData.outputFile);
+                }
+
+                this.setRecordingState(true);
+                this.showStatus('Initializing recording...');
+                
+                try {
+                    // Simulate recording progress (replace with actual WebSocket connection)
+                    this.simulateProgress();
+                    
+                    const result = await this.api.request('/record', {
+                        method: 'POST',
+                        body: JSON.stringify(recordingData)
+                    });
+                    
+                    if (result.success) {
+                        this.showResult(result);
+                        this.loadRecordings();
+                        this.toast.show('Recording completed successfully!', 'success');
+                    } else {
+                        throw new Error(result.error || 'Recording failed');
+                    }
+                } catch (error) {
+                    this.showError(error.message);
+                    this.toast.show(`Recording failed: ${error.message}`, 'error');
+                } finally {
+                    this.setRecordingState(false);
+                }
+            }
+
+            simulateProgress() {
+                const messages = [
+                    'Launching browser...',
+                    'Loading website...',
+                    'Setting up recording...',
+                    'Recording in progress...',
+                    'Processing video...',
+                    'Finalizing...'
+                ];
+
+                let index = 0;
+                const interval = setInterval(() => {
+                    if (index < messages.length) {
+                        this.elements.statusText.textContent = messages[index];
+                        index++;
+                    } else {
+                        clearInterval(interval);
+                    }
+                }, 2000);
+
+                return interval;
+            }
+
+            setRecordingState(isRecording) {
+                this.elements.recordBtn.disabled = isRecording;
+                this.elements.previewBtn.disabled = isRecording;
+                
+                if (isRecording) {
+                    this.elements.btnText.classList.add('hidden');
+                    this.elements.btnSpinner.classList.remove('hidden');
+                } else {
+                    this.elements.btnText.classList.remove('hidden');
+                    this.elements.btnSpinner.classList.add('hidden');
+                }
+            }
+
+            showStatus(message) {
+                this.hideAllMessages();
+                this.elements.statusText.textContent = message;
+                this.elements.statusDiv.classList.remove('hidden');
+            }
+
+            showResult(result) {
+                this.hideAllMessages();
+                
+                this.elements.fileName.textContent = result.fileName;
+                this.elements.fileSize.textContent = formatFileSize(result.fileSize);
+                this.elements.recordedUrl.textContent = result.url;
+                this.elements.recordedDuration.textContent = formatDuration(result.duration || parseInt(this.elements.durationInput.value));
+                
+                this.elements.resultDiv.classList.remove('hidden');
+                this.currentVideoPath = result.outputPath;
+            }
+
+            showError(message) {
+                this.hideAllMessages();
+                document.getElementById('errorMessage').textContent = message;
+                this.elements.errorDiv.classList.remove('hidden');
+            }
+
+            hideAllMessages() {
+                [this.elements.statusDiv, this.elements.resultDiv, this.elements.errorDiv]
+                    .forEach(el => el.classList.add('hidden'));
+            }
+
+            resetForm() {
+                this.hideAllMessages();
+                this.validator.clearErrors();
+                this.elements.form.reset();
+                
+                // Reset to defaults
+                this.elements.durationInput.value = '30';
+                this.elements.resolutionSelect.value = '1920x1080';
+                this.elements.headlessCheckbox.checked = true;
+                this.elements.recordAudioCheckbox.checked = true;
+                
+                this.setRecordingState(false);
+                this.toast.show('Form reset', 'info');
+            }
+
+            async downloadVideo() {
+                if (!this.currentVideoPath) return;
+                
+                try {
+                    const blob = await this.api.downloadFile(`/download?file=${encodeURIComponent(this.currentVideoPath)}`);
+                    
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = this.currentVideoPath.split('/').pop();
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+                    
+                    this.toast.show('Download started', 'success');
+                } catch (error) {
+                    this.toast.show(`Download failed: ${error.message}`, 'error');
+                }
+            }
+
+            async loadRecordings() {
+                try {
+                    const recordings = await this.api.request('/recordings');
+                    this.displayRecordings(recordings);
+                } catch (error) {
+                    console.error('Failed to load recordings:', error);
+                    this.toast.show('Failed to load recordings', 'error');
+                }
+            }
+
+            displayRecordings(recordings) {
+                if (recordings.length === 0) {
+                    this.elements.recordingsList.innerHTML = '<p class="no-recordings">No recordings yet</p>';
+                    return;
+                }
+
+                this.elements.recordingsList.innerHTML = recordings.map(recording => `
+                    <div class="recording-item">
+                        <div class="recording-info">
+                            <div class="recording-name">${recording.name}</div>
+                            <div class="recording-details">
+                                ${formatFileSize(recording.size)} • ${new Date(recording.created).toLocaleString()}
+                                ${recording.duration ? ` • ${formatDuration(recording.duration)}` : ''}
+                            </div>
+                        </div>
+                        <div class="recording-actions">
+                            <button class="btn btn-secondary btn-small" onclick="app.downloadRecording('${recording.path}', '${recording.name}')">
+                                Download
+                            </button>
+                            <button class="btn btn-secondary btn-small" onclick="app.deleteRecording('${recording.path}')">
+                                Delete
+                            </button>
+                        </div>
+                    </div>
+                `).join('');
+            }
+
+            async downloadRecording(path, name) {
+                try {
+                    const blob = await this.api.downloadFile(`/download?file=${encodeURIComponent(path)}`);
+                    
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = name;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+                    
+                    this.toast.show('Download started', 'success');
+                } catch (error) {
+                    this.toast.show(`Download failed: ${error.message}`, 'error');
+                }
+            }
+
+            async deleteRecording(path) {
+                if (!confirm('Are you sure you want to delete this recording?')) {
+                    return;
+                }
+
+                try {
+                    await this.api.request(`/delete?file=${encodeURIComponent(path)}`, {
+                        method: 'DELETE'
+                    });
+
+                    this.loadRecordings();
+                    this.toast.show('Recording deleted', 'success');
+                } catch (error) {
+                    this.toast.show(`Delete failed: ${error.message}`, 'error');
+                }
+            }
+
+            // Preview and crop methods
+            showPreview() {
+                const url = this.elements.urlInput.value;
+                if (!url) {
+                    this.toast.show('Please enter a URL first', 'error');
+                    return;
+                }
+
+                if (!isValidUrl(url)) {
+                    this.toast.show('Please enter a valid URL', 'error');
+                    return;
+                }
+
+                // Use a proxy or iframe (in real implementation, you'd need a proxy endpoint)
+                this.elements.previewFrame.src = url; // Note: This may not work due to CORS
+                this.elements.previewSection.classList.remove('hidden');
+                
+                // Initialize crop selector
+                setTimeout(() => {
+                    this.initCropSelector();
+                }, 1000);
+                
+                this.toast.show('Preview loaded', 'info');
+            }
+
+            hidePreview() {
+                this.elements.previewSection.classList.add('hidden');
+                this.elements.previewFrame.src = '';
+            }
+
+            initCropSelector() {
+                if (this.cropSelector) return;
+
+                const container = document.getElementById('preview');
+                this.cropSelector = new CropSelector(container);
+                
+                this.cropSelector.onChange = (crop) => {
+                    this.updateCoordinateInputs(crop);
+                };
+
+                this.setFullPageCrop();
+            }
+
+            setFullPageCrop() {
+                if (!this.cropSelector) return;
+                
+                const [width, height] = this.elements.resolutionSelect.value.split('x').map(Number);
+                this.cropSelector.setCrop(0, 0, width, height);
+            }
+
+            resetCrop() {
+                if (this.cropSelector) {
+                    this.cropSelector.reset();
+                }
+            }
+
+            updateCoordinateInputs(crop) {
+                this.elements.cropX.value = Math.round(crop.x);
+                this.elements.cropY.value = Math.round(crop.y);
+                this.elements.cropWidth.value = Math.round(crop.width);
+                this.elements.cropHeight.value = Math.round(crop.height);
+            }
+
+            updateCropFromInputs() {
+                if (!this.cropSelector) return;
+                
+                const x = parseInt(this.elements.cropX.value) || 0;
+                const y = parseInt(this.elements.cropY.value) || 0;
+                const width = parseInt(this.elements.cropWidth.value) || 100;
+                const height = parseInt(this.elements.cropHeight.value) || 100;
+                
+                this.cropSelector.setCrop(x, y, width, height);
+            }
+        }
+
+        // Initialize the application
+        const app = new VideoRecorderApp();
+
+        // Export for global access (for onclick handlers)
+        window.app = app;
+    </script>
+</body>
+</html>
