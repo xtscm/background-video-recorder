@@ -10,10 +10,40 @@ const ffmpeg    = require('@ffmpeg-installer/ffmpeg');
 const FFMPEG = ffmpeg.path;
 
 async function getChrome() {
-  const { Launcher } = await import('chrome-launcher');
-  const [exe] = Launcher.getInstallations();
-  if (!exe) throw new Error('Chrome executable not found');
-  return exe;
+  // Check for environment variable first (Docker/server deployment)
+  if (process.env.CHROME_PATH || process.env.PUPPETEER_EXECUTABLE_PATH) {
+    const chromePath = process.env.CHROME_PATH || process.env.PUPPETEER_EXECUTABLE_PATH;
+    if (fs.existsSync(chromePath)) {
+      return chromePath;
+    }
+  }
+  
+  // Common server paths
+  const serverPaths = [
+    '/usr/bin/chromium-browser',
+    '/usr/bin/chromium',
+    '/usr/bin/google-chrome-stable',
+    '/usr/bin/google-chrome',
+    '/opt/google/chrome/chrome',
+    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+  ];
+  
+  for (const path of serverPaths) {
+    if (fs.existsSync(path)) {
+      return path;
+    }
+  }
+  
+  // Fallback to chrome-launcher (development)
+  try {
+    const { Launcher } = await import('chrome-launcher');
+    const [exe] = Launcher.getInstallations();
+    if (exe) return exe;
+  } catch (e) {
+    // chrome-launcher might not be available in server environment
+  }
+  
+  throw new Error('Chrome executable not found. Please install Chrome or set CHROME_PATH environment variable.');
 }
 
 function even(n){ return n % 2 === 0 ? n : n - 1; }
@@ -34,29 +64,52 @@ async function recordWebsite(url, {
   viewportWidth = 1920,
   viewportHeight = 1080
 } = {}) {
-  width  = even(width);
-  height = even(height);
-  const vWidth = even(viewportWidth);
-  const vHeight = even(viewportHeight);
-  const log = (...a)=>verbose&&console.log('[rec]',...a);
+  let browser, cdp, ff;
+  
+  try {
+    width  = even(width);
+    height = even(height);
+    const vWidth = even(viewportWidth);
+    const vHeight = even(viewportHeight);
+    const log = (...a)=>verbose&&console.log('[rec]',...a);
 
-  fs.mkdirSync(outputDir,{recursive:true});
-  const ts = new Date().toISOString().replace(/[:.]/g,'-');
-  const file = outputFile || `${new URL(url).hostname.replace(/[^\w]/g,'_')}_${ts}.${format}`;
-  const out  = path.join(outputDir,file);
+    fs.mkdirSync(outputDir,{recursive:true});
+    const ts = new Date().toISOString().replace(/[:.]/g,'-');
+    const file = outputFile || `${new URL(url).hostname.replace(/[^\w]/g,'_')}_${ts}.${format}`;
+    const out  = path.join(outputDir,file);
 
-  const browser = await puppeteer.launch({
-    executablePath: await getChrome(),
-    headless:'new',
-    args:[`--window-size=${vWidth},${vHeight}`,
-      '--no-sandbox','--disable-dev-shm-usage',
-      '--remote-debugging-port=0','--ignore-gpu-blacklist'],
-    defaultViewport:null
-  });
+    browser = await puppeteer.launch({
+      executablePath: await getChrome(),
+      headless: 'new',
+      args: [
+        `--window-size=${vWidth},${vHeight}`,
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-accelerated-2d-canvas',
+        '--no-first-run',
+        '--no-zygote',
+        '--single-process',
+        '--disable-gpu',
+        '--disable-background-timer-throttling',
+        '--disable-backgrounding-occluded-windows',
+        '--disable-renderer-backgrounding',
+        '--disable-features=TranslateUI',
+        '--disable-ipc-flooding-protection',
+        '--disable-web-security',
+        '--disable-features=VizDisplayCompositor',
+        '--remote-debugging-port=0',
+        '--ignore-gpu-blacklist',
+        '--ignore-certificate-errors',
+        '--ignore-ssl-errors',
+        '--ignore-certificate-errors-spki-list'
+      ],
+      defaultViewport: null
+    });
 
-  const port = +browser.wsEndpoint().match(/:(\d+)\//)[1];
-  const cdp  = await CDP({port});
-  const { Page } = cdp; await Page.enable();
+    const port = +browser.wsEndpoint().match(/:(\d+)\//)[1];
+    cdp = await CDP({port});
+    const { Page } = cdp; await Page.enable();
 
   const needsCrop = (cropX > 0 || cropY > 0 || width !== vWidth || height !== vHeight);
   const videoFilter = needsCrop
@@ -116,9 +169,27 @@ async function recordWebsite(url, {
   await cdp.close();
   await browser.close();
 
-  if(!fs.existsSync(out)||!fs.statSync(out).size) throw new Error(`Empty output. Captured ${frames} frames but no video generated`);
-  log(`✅ Recording completed: ${out} (${frames} frames)`);
-  return out;
+    if(!fs.existsSync(out)||!fs.statSync(out).size) throw new Error(`Empty output. Captured ${frames} frames but no video generated`);
+    log(`✅ Recording completed: ${out} (${frames} frames)`);
+    return out;
+    
+  } catch (error) {
+    log(`❌ Recording failed: ${error.message}`);
+    
+    // Cleanup resources on error
+    if (ff && !ff.stdin.destroyed) {
+      try { ff.stdin.end(); } catch (e) {}
+      try { ff.kill('SIGTERM'); } catch (e) {}
+    }
+    if (cdp) {
+      try { await cdp.close(); } catch (e) {}
+    }
+    if (browser) {
+      try { await browser.close(); } catch (e) {}
+    }
+    
+    throw error;
+  }
 }
 
 if(require.main===module){
